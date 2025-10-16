@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head><title>Healthcare Chatbot</title>
+    <style>
+    body { font-family: Arial; margin: 2rem; max-width:800px;}
+    #chat { border:1px solid #ccc; padding:1rem; height:60vh; overflow:auto; }
+    .user { color: #0b5; }
+    .bot { color: #06c; }
+    #inputBox { width:80%; padding:8px;}
+    #send { padding:8px 12px; }
+    .disclaimer { color:#a00; font-weight:bold; }
+  </style>
+</head>
+<body>
+    <h2>Ask the Doctor</h2>
+    <input id="q" type="text" placeholder="Type your question here">
+    <button onclick="ask()">Ask</button>
+    <p id="r"></p>
+    <script>
+    async function ask(){
+    const q = document.getElementById("q").value;
+    const res = await fetch("/chat", {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({question: q})
+    });
+    const data = await res.json();
+    document.getElementById("r").innerText = data.response;
+    }
+    </script>
+</body>
+</html>
