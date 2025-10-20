@@ -51,3 +51,4 @@ GET /health - Health check
 GET /info - Bot information
 
 hosted link:
+https://doctor-chatbox.onrender.com
