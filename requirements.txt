@@ -1,23 +1,22 @@
-pip>=25.1.1
-setuptools>=68.0.0
-wheel>=0.41.0
+# Core dependencies
 Flask==3.0.0
 flask-cors==4.0.0
+
+# ML/NLP Libraries
 transformers==4.57.0
-tensorflow==2.20.0
+tensorflow-cpu==2.18.0
+tf-keras==2.18.0
+torch==2.5.0
+tokenizers==0.22.1
+
+# Data processing
 datasets==3.2.0
-tokenizers==0.21.0
 numpy==1.26.4
 pandas==2.2.0
 scikit-learn==1.4.0
-matplotlib==3.8.2
+
+# Utilities
 nltk==3.9.1
-tf_keras==2.20.1
-tokenizers==0.22.1
-transformers==4.57.0
-uvicorn==0.37.0
-torch==2.9.0
 accelerate==1.2.1
 safetensors==0.4.5
-
-
+gunicorn==21.2.0
