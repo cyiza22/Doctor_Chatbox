@@ -1,5 +1,7 @@
 Healthcare Chatbot: AI-Powered Medical Question Answering System
-📋 Project Overview
+
+ Project Overview
+ 
 Healthcare Chatbot is an intelligent conversational AI system designed to answer medical questions using a fine-tuned T5 Transformer model. The chatbot is trained on the ChatDoctor-HealthCareMagic-100k dataset, containing over 100,000 real doctor-patient conversations from online medical forums.
 Purpose & Domain Alignment
 This chatbot addresses the need for accessible preliminary medical information and symptom guidance. It demonstrates practical NLP applications in the healthcare domain by:
