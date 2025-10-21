@@ -22,15 +22,18 @@ logger = logging.getLogger(__name__)
 
 # MODEL INITIALIZATION
 
-MODEL_PATH = "healthcare_chatbot_model"
+MODEL_PATH = "Henriette22/healthcare-chatbot-t5"
 
 try:
-    logger.info("Loading model and tokenizer...")
-    model = TFAutoModelForSeq2SeqLM.from_pretrained(MODEL_PATH)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-    logger.info("✓ Model and tokenizer loaded successfully")
+    logger.info("Loading model and tokenizer from Hugging Face...")
+    hf_token = os.environ.get("HF_TOKEN")
+
+    model = TFAutoModelForSeq2SeqLM.from_pretrained(MODEL_PATH, use_auth_token=hf_token)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, use_auth_token=hf_token)
+
+    logger.info("✓ Fine-tuned model and tokenizer loaded successfully")
 except Exception as e:
-    logger.error(f"Failed to load model: {e}")
+    logger.error(f"Failed to load model from Hugging Face: {e}")
     model = None
     tokenizer = None
 
