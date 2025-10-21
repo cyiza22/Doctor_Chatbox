@@ -9,6 +9,10 @@ import logging
 import os
 import torch
 
+# Memory optimization environment variables
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+
 # CONFIGURATION & SETUP
 app = Flask(__name__, template_folder='.', static_folder='.')
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -23,23 +27,35 @@ try:
     logger.info("Loading model and tokenizer from Hugging Face...")
     hf_token = os.environ.get("HF_TOKEN")
 
-    # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, use_auth_token=hf_token)
+    # Load tokenizer first (lightweight)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, token=hf_token)
+    logger.info("✓ Tokenizer loaded")
     
-    # Load model - automatically converts from TensorFlow to PyTorch
-    logger.info("Converting TensorFlow model to PyTorch (first load may take a moment)...")
+    # Aggressive memory optimization for model loading
+    logger.info("Loading model with maximum memory optimization...")
+    
+    import gc
+    gc.collect()  # Clean memory before loading
+    
     model = AutoModelForSeq2SeqLM.from_pretrained(
         MODEL_PATH, 
-        use_auth_token=hf_token,
-        from_tf=True,                # Auto-converts from TensorFlow
-        torch_dtype=torch.float32,   # Use float32 for CPU
-        low_cpu_mem_usage=True       # Load model in chunks to save memory
+        token=hf_token,
+        from_tf=True,                    # Convert from TensorFlow
+        low_cpu_mem_usage=True,          # Load incrementally
+        device_map="cpu",                # Force CPU
+        torch_dtype=torch.float16,       # Half precision (50% memory reduction)
     )
     
-    # Set to eval mode to save memory
+    # Set to eval mode and optimize
     model.eval()
     
-    logger.info("✓ Model and tokenizer loaded successfully")
+    # Disable gradients globally to save memory
+    for param in model.parameters():
+        param.requires_grad = False
+    
+    gc.collect()  # Clean up after loading
+    
+    logger.info("✓ Model loaded successfully with memory optimizations")
 except Exception as e:
     logger.error(f"Failed to load model: {e}")
     model = None
@@ -96,9 +112,9 @@ def chat():
             outputs = model.generate(
                 **inputs,
                 max_length=128,
-                num_beams=4,
+                num_beams=2,  # Reduced from 4 to save memory
                 early_stopping=True,
-                temperature=0.7,
+                do_sample=False,  # Deterministic generation
             )
         
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
