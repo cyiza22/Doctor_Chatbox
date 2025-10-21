@@ -1,44 +1,47 @@
 """
-Healthcare Chatbot Flask Backend
-Serves the fine-tuned T5 model via REST API with CORS support
+Healthcare Chatbot Flask Backend - PyTorch Version (Memory Optimized)
 """
 
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-from transformers import TFAutoModelForSeq2SeqLM, AutoTokenizer
-import tensorflow as tf
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import logging
 import os
+import torch
 
 # CONFIGURATION & SETUP
-
 app = Flask(__name__, template_folder='.', static_folder='.')
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 # MODEL INITIALIZATION
-
 MODEL_PATH = "Henriette22/healthcare-chatbot-t5"
 
 try:
     logger.info("Loading model and tokenizer from Hugging Face...")
     hf_token = os.environ.get("HF_TOKEN")
 
-    model = TFAutoModelForSeq2SeqLM.from_pretrained(MODEL_PATH, use_auth_token=hf_token)
+    # Load with PyTorch - more memory efficient
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, use_auth_token=hf_token)
-
-    logger.info("✓ Fine-tuned model and tokenizer loaded successfully")
+    model = AutoModelForSeq2SeqLM.from_pretrained(
+        MODEL_PATH, 
+        use_auth_token=hf_token,
+        torch_dtype=torch.float32,  # Use float32 for CPU
+        low_cpu_mem_usage=True      # Critical for memory optimization
+    )
+    
+    # Set to eval mode to save memory
+    model.eval()
+    
+    logger.info("✓ Model and tokenizer loaded successfully")
 except Exception as e:
-    logger.error(f"Failed to load model from Hugging Face: {e}")
+    logger.error(f"Failed to load model: {e}")
     model = None
     tokenizer = None
 
 # ROUTES
-
 @app.route("/", methods=["GET"])
 def home():
     """Serve the main HTML interface"""
@@ -51,29 +54,14 @@ def home():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    """
-    Process user question and return chatbot response
-    
-    Request JSON:
-        {
-            "question": "What is your question?"
-        }
-    
-    Response JSON:
-        {
-            "response": "Generated medical answer",
-            "status": "success"
-        }
-    """
+    """Process user question and return chatbot response"""
     try:
-        # Validate model is loaded
         if model is None or tokenizer is None:
             return jsonify({
                 "response": "Error: Model not loaded",
                 "status": "error"
             }), 503
         
-        # Get and validate input
         data = request.get_json()
         if not data:
             return jsonify({
@@ -83,7 +71,6 @@ def chat():
         
         user_question = data.get("question", "").strip()
         
-        # Validate question
         if not user_question:
             return jsonify({
                 "response": "Please enter a medical question.",
@@ -96,40 +83,29 @@ def chat():
                 "status": "error"
             }), 400
         
-        # Prepare input with task prefix
+        # Prepare input
         input_text = "medical question: " + user_question
+        inputs = tokenizer(input_text, return_tensors="pt", truncation=True, max_length=256)
         
-        # Tokenize
-        inputs = tokenizer(input_text, return_tensors="tf", truncation=True, max_length=256)
+        # Generate response (no gradient tracking to save memory)
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_length=128,
+                num_beams=4,
+                early_stopping=True,
+                temperature=0.7,
+            )
         
-        # Generate response
-        outputs = model.generate(
-            **inputs,
-            max_length=128,
-            num_beams=4,
-            early_stopping=True,
-            temperature=0.7,
-        )
-        
-        # Decode response
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Add disclaimer for healthcare responses
         disclaimer = "\n\n⚠️ Disclaimer: This is an AI-generated response. Always consult a qualified healthcare professional for medical advice."
         
-        logger.info(f" Query processed: {user_question[:50]}...")
+        logger.info(f"Query processed: {user_question[:50]}...")
         
         return jsonify({
             "response": response + disclaimer,
             "status": "success"
         }), 200
-    
-    except tf.errors.OutOfRangeError:
-        logger.error("Model input out of range")
-        return jsonify({
-            "response": "Error: Input too large for model",
-            "status": "error"
-        }), 400
     
     except Exception as e:
         logger.error(f"Unexpected error in /chat: {str(e)}")
@@ -162,22 +138,16 @@ def get_info():
 
 
 # ERROR HANDLERS
-
 @app.errorhandler(404)
 def not_found(error):
-    """Handle 404 errors"""
     return jsonify({"error": "Endpoint not found"}), 404
-
 
 @app.errorhandler(405)
 def method_not_allowed(error):
-    """Handle 405 errors"""
     return jsonify({"error": "Method not allowed"}), 405
-
 
 @app.errorhandler(500)
 def internal_error(error):
-    """Handle 500 errors"""
     logger.error(f"Internal error: {error}")
     return jsonify({"error": "Internal server error"}), 500
 
