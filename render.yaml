@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: healthcare-chatbot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 1 --timeout 120 --max-requests 100 --max-requests-jitter 10 app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: TRANSFORMERS_CACHE
+        value: /tmp/transformers_cache
+      - key: HF_HOME
+        value: /tmp/hf_home
