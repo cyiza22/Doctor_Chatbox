@@ -23,13 +23,17 @@ try:
     logger.info("Loading model and tokenizer from Hugging Face...")
     hf_token = os.environ.get("HF_TOKEN")
 
-    # Load with PyTorch - more memory efficient
+    # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, use_auth_token=hf_token)
+    
+    # Load model - automatically converts from TensorFlow to PyTorch
+    logger.info("Converting TensorFlow model to PyTorch (first load may take a moment)...")
     model = AutoModelForSeq2SeqLM.from_pretrained(
         MODEL_PATH, 
         use_auth_token=hf_token,
-        torch_dtype=torch.float32,  # Use float32 for CPU
-        low_cpu_mem_usage=True      # Critical for memory optimization
+        from_tf=True,                # Auto-converts from TensorFlow
+        torch_dtype=torch.float32,   # Use float32 for CPU
+        low_cpu_mem_usage=True       # Load model in chunks to save memory
     )
     
     # Set to eval mode to save memory
