@@ -21,7 +21,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # MODEL INITIALIZATION
-MODEL_PATH = "Henriette22/healthcare-chatbot-t5"
+# Using base t5-small because TF→PyTorch conversion exceeds 512MB RAM
+MODEL_PATH = "t5-small"  # 242MB - fits in free tier
 
 model = None
 tokenizer = None
@@ -89,7 +90,7 @@ def load_model():
             model = AutoModelForSeq2SeqLM.from_pretrained(
                 "t5-small",
                 low_cpu_mem_usage=True,
-                torch_dtype=torch.float16,
+                dtype=torch.float16,  # Changed from torch_dtype
             )
             model.eval()
             logger.warning("⚠️ Using base t5-small (not fine-tuned)")
