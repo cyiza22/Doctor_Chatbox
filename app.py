@@ -35,7 +35,7 @@ def load_model():
         logger.info("Starting model load process...")
         logger.info("=" * 60)
         
-        hf_token = os.environ.get("HF_TOKEN")
+        hf_token = os.environ.get("HF_TOKEN") or os.environ.get("render_read_token")
         if not hf_token:
             logger.warning("⚠️ HF_TOKEN not found in environment variables")
         
