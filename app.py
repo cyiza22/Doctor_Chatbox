@@ -58,7 +58,6 @@ def load_model():
         model = AutoModelForSeq2SeqLM.from_pretrained(
             MODEL_PATH, 
             token=hf_token,
-            from_tf=True,
             low_cpu_mem_usage=True,
             dtype=torch.float16,  # Changed from torch_dtype
         )
