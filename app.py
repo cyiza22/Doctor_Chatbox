@@ -59,8 +59,7 @@ def load_model():
             token=hf_token,
             from_tf=True,
             low_cpu_mem_usage=True,
-            device_map="cpu",
-            torch_dtype=torch.float16,
+            dtype=torch.float16,  # Changed from torch_dtype
         )
         
         logger.info("Step 3/3: Optimizing model for inference...")
@@ -90,7 +89,6 @@ def load_model():
             model = AutoModelForSeq2SeqLM.from_pretrained(
                 "t5-small",
                 low_cpu_mem_usage=True,
-                device_map="cpu",
                 torch_dtype=torch.float16,
             )
             model.eval()
@@ -209,7 +207,7 @@ def get_info():
         "description": "An AI chatbot trained to answer medical questions",
         "disclaimer": "This tool is for informational purposes only. Always consult qualified healthcare professionals.",
         "model_loaded": model is not None and tokenizer is not None,
-        "hf_token_present": os.environ.get("HF_TOKEN") is not None
+        "hf_token_present": (os.environ.get("HF_TOKEN") is not None) or (os.environ.get("render_read_token") is not None)
     }), 200
 
 
