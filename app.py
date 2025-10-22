@@ -21,8 +21,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # MODEL INITIALIZATION
-# Using base t5-small because TF→PyTorch conversion exceeds 512MB RAM
-MODEL_PATH = "t5-small"  # 242MB - fits in free tier
+MODEL_PATH = "Henriette22/healthcare-chatbot-t5"
 
 model = None
 tokenizer = None
@@ -36,7 +35,7 @@ def load_model():
         logger.info("Starting model load process...")
         logger.info("=" * 60)
         
-        hf_token = os.environ.get("HF_TOKEN") or os.environ.get("render_read_token")
+        hf_token = os.environ.get("HF_TOKEN")
         if not hf_token:
             logger.warning("⚠️ HF_TOKEN not found in environment variables")
         
@@ -58,8 +57,10 @@ def load_model():
         model = AutoModelForSeq2SeqLM.from_pretrained(
             MODEL_PATH, 
             token=hf_token,
+            from_tf=True,
             low_cpu_mem_usage=True,
-            dtype=torch.float16,  # Changed from torch_dtype
+            device_map="cpu",
+            torch_dtype=torch.float16,
         )
         
         logger.info("Step 3/3: Optimizing model for inference...")
@@ -89,7 +90,8 @@ def load_model():
             model = AutoModelForSeq2SeqLM.from_pretrained(
                 "t5-small",
                 low_cpu_mem_usage=True,
-                dtype=torch.float16,  # Changed from torch_dtype
+                device_map="cpu",
+                torch_dtype=torch.float16,
             )
             model.eval()
             logger.warning("⚠️ Using base t5-small (not fine-tuned)")
@@ -207,7 +209,7 @@ def get_info():
         "description": "An AI chatbot trained to answer medical questions",
         "disclaimer": "This tool is for informational purposes only. Always consult qualified healthcare professionals.",
         "model_loaded": model is not None and tokenizer is not None,
-        "hf_token_present": (os.environ.get("HF_TOKEN") is not None) or (os.environ.get("render_read_token") is not None)
+        "hf_token_present": os.environ.get("HF_TOKEN") is not None
     }), 200
 
 
