@@ -1,67 +1,41 @@
 """
-Healthcare Chatbot Flask Backend - PyTorch Version (Memory Optimized)
+Healthcare Chatbot Flask Backend
+Serves the fine-tuned T5 model via REST API with CORS support
 """
 
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import TFAutoModelForSeq2SeqLM, AutoTokenizer
+import tensorflow as tf
 import logging
 import os
-import torch
-
-# Memory optimization environment variables
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
-os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 # CONFIGURATION & SETUP
+
 app = Flask(__name__, template_folder='.', static_folder='.')
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 # MODEL INITIALIZATION
-MODEL_PATH = "Henriette22/healthcare-chatbot-t5"
+
+MODEL_PATH = "healthcare_chatbot_model"
 
 try:
-    logger.info("Loading model and tokenizer from Hugging Face...")
-    hf_token = os.environ.get("HF_TOKEN")
-
-    # Load tokenizer first (lightweight)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, token=hf_token)
-    logger.info("✓ Tokenizer loaded")
-    
-    # Aggressive memory optimization for model loading
-    logger.info("Loading model with maximum memory optimization...")
-    
-    import gc
-    gc.collect()  # Clean memory before loading
-    
-    model = AutoModelForSeq2SeqLM.from_pretrained(
-        MODEL_PATH, 
-        token=hf_token,
-        from_tf=True,                    # Convert from TensorFlow
-        low_cpu_mem_usage=True,          # Load incrementally
-        device_map="cpu",                # Force CPU
-        torch_dtype=torch.float16,       # Half precision (50% memory reduction)
-    )
-    
-    # Set to eval mode and optimize
-    model.eval()
-    
-    # Disable gradients globally to save memory
-    for param in model.parameters():
-        param.requires_grad = False
-    
-    gc.collect()  # Clean up after loading
-    
-    logger.info("✓ Model loaded successfully with memory optimizations")
+    logger.info("Loading model and tokenizer...")
+    model = TFAutoModelForSeq2SeqLM.from_pretrained(MODEL_PATH)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+    logger.info("✓ Model and tokenizer loaded successfully")
 except Exception as e:
     logger.error(f"Failed to load model: {e}")
     model = None
     tokenizer = None
 
 # ROUTES
+
 @app.route("/", methods=["GET"])
 def home():
     """Serve the main HTML interface"""
@@ -74,14 +48,29 @@ def home():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    """Process user question and return chatbot response"""
+    """
+    Process user question and return chatbot response
+    
+    Request JSON:
+        {
+            "question": "What is your question?"
+        }
+    
+    Response JSON:
+        {
+            "response": "Generated medical answer",
+            "status": "success"
+        }
+    """
     try:
+        # Validate model is loaded
         if model is None or tokenizer is None:
             return jsonify({
                 "response": "Error: Model not loaded",
                 "status": "error"
             }), 503
         
+        # Get and validate input
         data = request.get_json()
         if not data:
             return jsonify({
@@ -91,6 +80,7 @@ def chat():
         
         user_question = data.get("question", "").strip()
         
+        # Validate question
         if not user_question:
             return jsonify({
                 "response": "Please enter a medical question.",
@@ -103,29 +93,40 @@ def chat():
                 "status": "error"
             }), 400
         
-        # Prepare input
+        # Prepare input with task prefix
         input_text = "medical question: " + user_question
-        inputs = tokenizer(input_text, return_tensors="pt", truncation=True, max_length=256)
         
-        # Generate response (no gradient tracking to save memory)
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_length=128,
-                num_beams=2,  # Reduced from 4 to save memory
-                early_stopping=True,
-                do_sample=False,  # Deterministic generation
-            )
+        # Tokenize
+        inputs = tokenizer(input_text, return_tensors="tf", truncation=True, max_length=256)
         
+        # Generate response
+        outputs = model.generate(
+            **inputs,
+            max_length=128,
+            num_beams=4,
+            early_stopping=True,
+            temperature=0.7,
+        )
+        
+        # Decode response
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
+        # Add disclaimer for healthcare responses
         disclaimer = "\n\n⚠️ Disclaimer: This is an AI-generated response. Always consult a qualified healthcare professional for medical advice."
         
-        logger.info(f"Query processed: {user_question[:50]}...")
+        logger.info(f" Query processed: {user_question[:50]}...")
         
         return jsonify({
             "response": response + disclaimer,
             "status": "success"
         }), 200
+    
+    except tf.errors.OutOfRangeError:
+        logger.error("Model input out of range")
+        return jsonify({
+            "response": "Error: Input too large for model",
+            "status": "error"
+        }), 400
     
     except Exception as e:
         logger.error(f"Unexpected error in /chat: {str(e)}")
@@ -158,16 +159,22 @@ def get_info():
 
 
 # ERROR HANDLERS
+
 @app.errorhandler(404)
 def not_found(error):
+    """Handle 404 errors"""
     return jsonify({"error": "Endpoint not found"}), 404
+
 
 @app.errorhandler(405)
 def method_not_allowed(error):
+    """Handle 405 errors"""
     return jsonify({"error": "Method not allowed"}), 405
+
 
 @app.errorhandler(500)
 def internal_error(error):
+    """Handle 500 errors"""
     logger.error(f"Internal error: {error}")
     return jsonify({"error": "Internal server error"}), 500
 
